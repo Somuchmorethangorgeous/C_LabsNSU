@@ -5,12 +5,12 @@
 #ifndef PRIM_LIB_H
 #define PRIM_LIB_H
 
+#include <stdlib.h>
 #define MAX_NUM_VERTICES 5000
 #define out 0
 #define in 1
 #define GRAPH struct list
 #define QUEUE struct list1
-#include <stdlib.h>
 
 
 GRAPH{
