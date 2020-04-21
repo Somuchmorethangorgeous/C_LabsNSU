@@ -43,22 +43,22 @@ int parent(int i){
 
 
 int leftChild(int i){
-    return 2*i+1;
+    return (2*i+1);
 }
 
 
 int rightChild(int i){
-    return 2*i+2;
+    return (2*i+2);
 }
 
 
 int isInQueue(HEAP* ptr, int vertex){
-    return ptr -> pos[vertex] < ptr -> heapSize;
+    return (ptr -> pos[vertex] < ptr -> heapSize);
 }
 
 
 int isQueueEmpty(HEAP* ptr){
-    return ptr->heapSize == 0;
+    return (ptr->heapSize == 0);
 }
 
 
@@ -91,7 +91,7 @@ void minHeapify(HEAP* ptr, int idx){
         smallest = l;
     if (r < ptr -> heapSize && ptr -> array[r].key < ptr -> array[smallest].key)
         smallest = r;
-    if(smallest != idx) {
+    if (smallest != idx) {
 
         NODE smallestNode = ptr->array[smallest];
         NODE idxNode = ptr -> array[idx];
@@ -159,10 +159,10 @@ int checkConditions(int inf, unsigned int value, int sup){
 int counter(int** matrix, int vertex, const int start, int* numOfPath, bool* visited, const int numOfVertices) {
     if (vertex == start)
         return numOfPath[vertex];
-    else{
+    else {
         int sum = 0;
         visited[vertex] = true;
-        for(int i = 0; i < numOfVertices; ++i){
+        for (int i = 0; i < numOfVertices; ++i){
             if (matrix[vertex][i] && (!visited[i] || i == start))
                 sum += counter(matrix, i, start, numOfPath, visited, numOfVertices);
             numOfPath[vertex] = sum;
@@ -189,7 +189,7 @@ int countPath(int** matrix, const int numOfVertices, int start, int end){
 
 void printPath(int* parents, int start, int end){
     printf("%d ", end + 1);
-    for(int i = end; i != start; i=parents[i])
+    for (int i = end; i != start; i=parents[i])
         printf("%d ", parents[i] + 1);
     free(parents);
 }
@@ -209,13 +209,13 @@ void printDistance(unsigned int* key, int numOfVertices){
 
 
 void checkPath(const int* parents, const int end,  workingResult* status){
-        if(parents[end] == -1)
+        if (parents[end] == -1)
             *status = noPath;
 }
 
 
 void clearMatrix(int** matrix, const int numOfVertices){
-    for(int i = 0; i < numOfVertices; ++i)
+    for (int i = 0; i < numOfVertices; ++i)
         free(matrix[i]);
     free(matrix);
 }
@@ -226,7 +226,7 @@ int* Dijkstra(int** adjMatrix, const int numOfVertices,const int start, const in
     int* parents = (int*)malloc(sizeof(int) * numOfVertices);
 
     HEAP* minHeap = createHeap(numOfVertices); // initial minimal heap
-    for(int i = 0; i < numOfVertices; ++i){
+    for (int i = 0; i < numOfVertices; ++i){
         parents[i] = -1;
         key[i] = UINT_MAX;
         minHeap -> array[i] = *newNode(i, key[i]);
@@ -241,10 +241,10 @@ int* Dijkstra(int** adjMatrix, const int numOfVertices,const int start, const in
 
     /// extracting nearest vertex, updating distance to the adjacent vertices, putting this in heap
 
-    while(!isQueueEmpty(minHeap)){
+    while (!isQueueEmpty(minHeap)){
         int nearestVertex = extractMin(minHeap);
-        for(int adjVertex = 0; adjVertex < numOfVertices; ++adjVertex){
-            if(adjMatrix[nearestVertex][adjVertex] && isInQueue(minHeap, adjVertex) && key[nearestVertex] + adjMatrix[nearestVertex][adjVertex] < key[adjVertex]){
+        for (int adjVertex = 0; adjVertex < numOfVertices; ++adjVertex){
+            if (adjMatrix[nearestVertex][adjVertex] && isInQueue(minHeap, adjVertex) && key[nearestVertex] + adjMatrix[nearestVertex][adjVertex] < key[adjVertex]){
 
                 key[adjVertex] =  key[nearestVertex] + adjMatrix[nearestVertex][adjVertex];
 
@@ -275,7 +275,7 @@ int** initMatrix(FILE*fp, const int numOfVertices, const int numOfEdges, working
         adjMatrix[i] = (int*)malloc(sizeof(int) * numOfVertices);
         memset(adjMatrix[i], 0, sizeof(int) * numOfVertices);
     }
-    for(int j = 0; j < numOfEdges; ++j){
+    for (int j = 0; j < numOfEdges; ++j){
         int start, end, checkInput;
         unsigned int length;
         checkInput = fscanf(fp, "%d %d %d", &start, &end, &length);
@@ -284,17 +284,17 @@ int** initMatrix(FILE*fp, const int numOfVertices, const int numOfEdges, working
             break;
         }
 
-        if(!checkConditions(1, start, MAX_NUM_VERTICES) || !checkConditions(1, start, numOfVertices)){
+        if (!checkConditions(1, start, MAX_NUM_VERTICES) || !checkConditions(1, start, numOfVertices)){
             *status = badVertex;
             break;
         }
 
-        if(!checkConditions(1, end, MAX_NUM_VERTICES) || !checkConditions(1, end, numOfVertices)){
+        if (!checkConditions(1, end, MAX_NUM_VERTICES) || !checkConditions(1, end, numOfVertices)){
             *status = badVertex;
             break;
         }
 
-        if(!checkConditions(0, length, INT_MAX)){
+        if (!checkConditions(0, length, INT_MAX)){
             *status = badLength;
             break;
         }
@@ -336,7 +336,7 @@ void printResult(workingResult status){
 }
 
 
-int main() {
+int main(){
     FILE* fp = fopen("in.txt", "r");
     workingResult status = success;
     int** adjMatrix;
@@ -350,13 +350,13 @@ int main() {
     }
 
     int maxNumOfEdges = numOfVertices*(numOfVertices - 1)/2;
-    if(!checkConditions(0, numOfVertices, MAX_NUM_VERTICES))
+    if (!checkConditions(0, numOfVertices, MAX_NUM_VERTICES))
         status = badNumberOfVertices;
 
-    if(!checkConditions(0, numOfEdges, maxNumOfEdges))
+    if (!checkConditions(0, numOfEdges, maxNumOfEdges))
         status = badNumberOfEdges;
 
-    if(!checkConditions(1, start, MAX_NUM_VERTICES) || !checkConditions(1, end, MAX_NUM_VERTICES))
+    if (!checkConditions(1, start, MAX_NUM_VERTICES) || !checkConditions(1, end, MAX_NUM_VERTICES))
         status = badVertex;
 
     if (status == success){
@@ -371,7 +371,7 @@ int main() {
         checkPath(parents, end, &status);
     }
 
-    if(status == success){
+    if (status == success){
         printPath(parents, start, end);
     }
     else
