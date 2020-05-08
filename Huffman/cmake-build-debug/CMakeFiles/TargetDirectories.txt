@@ -1,0 +1,3 @@
+C:/Users/roxxa/CLionProjects/MyLabs/Huffman/cmake-build-debug/CMakeFiles/Huffman.dir
+C:/Users/roxxa/CLionProjects/MyLabs/Huffman/cmake-build-debug/CMakeFiles/edit_cache.dir
+C:/Users/roxxa/CLionProjects/MyLabs/Huffman/cmake-build-debug/CMakeFiles/rebuild_cache.dir
