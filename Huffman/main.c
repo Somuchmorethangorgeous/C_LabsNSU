@@ -5,7 +5,7 @@
 
 
 #define SYMB 256
-#define MAX_BUF_SIZE 5000
+#define MAX_BUF_SIZE 1e5
 #define HEAP struct heap
 #define NODE struct list
 #define BUFFER struct class
@@ -169,8 +169,8 @@ void readByte(unsigned char ptr [], unsigned char byte){
 }
 
 
-void writeByte(BUFFER*ptr, unsigned char bit){
-    ptr->buffer[ptr->sizeOfBuffer++] = bit;
+void writeByte(BUFFER*ptr, unsigned char byte){
+    ptr->buffer[ptr->sizeOfBuffer++] = byte;
 }
 
 
@@ -259,18 +259,15 @@ void codeMessage(FILE*fin, unsigned char** symbols, BUFFER* ptr) {
     fseek(fin, 3, SEEK_SET);
     while (fread(&curSymb, sizeof(unsigned char), 1, fin)) {
         unsigned int lenOfSymb = strlen(symbols[curSymb]);
-        if (lenOfSymb + bitsCount < 8) {
-            for (int i = 0; i < lenOfSymb; ++i)
-                byte[bitsCount++] = symbols[curSymb][i];
-        } else {
-            int j = 0;
-            for (; bitsCount < 8; ++j)
-                byte[bitsCount++] = symbols[curSymb][j];
-            //byte[bitsCount] = '\0';
-            writeByte(ptr, inChar(byte, tmp));
-            bitsCount = 0;
-            for (; j < lenOfSymb; ++j)
-                byte[bitsCount++] = symbols[curSymb][j];
+        int j = 0;
+        while (j < lenOfSymb) {
+            for (; bitsCount < 8 && j < lenOfSymb; ++bitsCount) {
+                byte[bitsCount] = symbols[curSymb][j++];
+            }
+            if (bitsCount == 8){
+                writeByte(ptr, inChar(byte, tmp));
+                bitsCount = 0;
+            }
         }
     }
     if (bitsCount) {
@@ -290,7 +287,7 @@ void preOrder(BUFFER*ptr, NODE* tmp, unsigned char** codeSymb, char* value, int*
         writeByte(ptr, '1');
         writeByte(ptr, tmp -> symb);
         codeSymb[tmp->symb] = (unsigned char*)malloc(sizeof(unsigned char) * *(bit));
-        //printf("%c %s\n", tmp-> symb, value);
+       // printf("%c %s\n", tmp-> symb, value);
         strcpy(codeSymb[tmp->symb], value);
         return;
     }
@@ -349,8 +346,6 @@ void pushingInTree(FILE*fin, BUFFER* tmp, HEAP** ptr){
             ++(*ptr) -> heapSize;
         }
     }
-    for (int i = 0; i < numOfSymb; ++i)
-        printf("%d ", (*ptr)->array[i]->freq);
     writeByte(tmp, numOfSymb);
     free(frequency);
 }
@@ -381,16 +376,17 @@ int main() {
     if (lineOfWork == 'c') {
         int bitInCode = 0;
         unsigned char** codeSymb = (unsigned char**)malloc(sizeof(unsigned char*) * SYMB);
-        char* code = (char*)malloc(sizeof(unsigned char) * 8);
+        char* code = (char*)malloc(sizeof(unsigned char) * SYMB);
         if (checkForSymb(fin) == 3)
             return 0;
         outBuffer = initBuf(outBuffer);
         pushingInTree(fin, outBuffer, &minHeap);
-       /* creatingBigTree(minHeap);
+        creatingBigTree(minHeap);
         preOrder(outBuffer, *minHeap->array, codeSymb, code, &bitInCode);
         codeMessage(fin, codeSymb, outBuffer);
         fwrite(outBuffer->buffer, sizeof(unsigned char), outBuffer->sizeOfBuffer, fout);
-        free(code);*/
+        free(code);
+        free(outBuffer->buffer);
        // free(codeSymb); - надо сделать полный
     }
     else if (lineOfWork == 'd'){
