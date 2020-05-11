@@ -1,11 +1,14 @@
 #include <stdio.h>
 #include <malloc.h>
+#include <io.h>
 #include <string.h>
 #include <math.h>
 
 
-#define SYMB 256
-#define MAX_BUF_SIZE 1e5
+
+#define SYMB 257
+#define MAX_CODE_SIZE 24
+#define MAX_BUF_SIZE (int)1e5
 #define HEAP struct heap
 #define NODE struct list
 #define BUFFER struct class
@@ -32,7 +35,8 @@ TREE{
 };
 
 BUFFER{
-    int sizeOfBuffer;
+    int bits;
+    int bytes;
     unsigned char* buffer;
 };
 
@@ -107,11 +111,10 @@ NODE* newNode(int frequency, unsigned char symb){
 }
 
 
-HEAP* createHeap(unsigned int cap){
-    HEAP*ptr = (HEAP*)malloc(sizeof(HEAP));
-    ptr -> heapSize = 0;
-    ptr -> array = (NODE**)malloc(sizeof(NODE*) * cap);
-    return ptr;
+void createHeap(HEAP**ptr, unsigned short cap){
+    *ptr = (HEAP*)malloc(sizeof(HEAP));
+    (*ptr) -> heapSize = 0;
+    (*ptr) -> array = (NODE**)malloc(sizeof(NODE*) * cap);
 }
 
 
@@ -150,12 +153,11 @@ void initStack(TREE** ptr){
 }
 
 
-unsigned char inChar(const unsigned char byte [], unsigned char tmp) {
-    unsigned int res = 0;
-    for(int i = 0; i < 8; ++i)
-        res += (byte[i] - '0') * (int)pow(2, 7 - i);
-    tmp = (unsigned char) res;
-    return tmp;
+unsigned char pushChar(unsigned char arr[]){
+    unsigned res = 0;
+    for (int i = 0; i < 8; ++i)
+        res += (arr[i] - '0') * (int)pow(2, 7- i);
+     return (unsigned char) res;
 }
 
 
@@ -169,22 +171,61 @@ void readByte(unsigned char ptr [], unsigned char byte){
 }
 
 
-void writeByte(BUFFER*ptr, unsigned char byte){
-    ptr->buffer[ptr->sizeOfBuffer++] = byte;
+void writeBit(BUFFER*ptr, unsigned char bit, FILE* fout){
+    unsigned res = 0;
+    ptr->buffer[ptr -> bytes + ptr -> bits++] = bit;
+    if (ptr->bits  == 8){
+       for (int i = 0; i < 8; ++i) {
+           res += (ptr->buffer[ptr->bytes + i] - '0') * (int)pow(2, 7 - i);
+       }
+       ptr -> buffer[ptr->bytes++] = (unsigned char) res;
+       ptr -> bits = 0;
+       if (ptr -> bytes == 65536) {
+           fwrite(ptr->buffer, sizeof(unsigned char), ptr->bytes, fout);
+           memset(ptr->buffer, '\0', 65536);
+           ptr->bytes = 0;
+       }
+    }
 }
 
 
-void decode(FILE* fin, BUFFER* ptr, NODE* root) {
+void writeChar(BUFFER*ptr, unsigned char tmp, FILE* fout) {
+    for(int i = 0; i < 8; ++i){
+        if ((1 << (7 - i)) & tmp)
+            writeBit(ptr, '1', fout);
+        else
+            writeBit(ptr, '0', fout);
+    }
+}
+
+
+void decode(FILE* fin, FILE* fout, BUFFER* ptr, NODE* root, long int fsize, int offset) {
+    unsigned int decodedSymb = 0;
     int numOfBytes = 0;
     int curPos = ftell(fin);
-    fseek(fin, 0, SEEK_END);
-    int endOfFile = ftell(fin);
-    int sizeOfMessage = endOfFile - curPos;
-    fseek(fin, curPos, SEEK_SET);
+    int sizeOfMessage = fsize- curPos;
     NODE* curr = root;
     unsigned char usefulBits;
     unsigned char byte[8] ={0};
     unsigned char tmp;
+    if (offset != 0 && sizeOfMessage != 1) {
+        fseek(fin, -1, SEEK_CUR);
+        fread(&tmp, sizeof(unsigned char), 1, fin);
+        readByte(byte, tmp);
+        for (int i = offset; i < 8; ++i) {
+            if (byte[i] == '1' && curr->right) {
+                curr = curr->right;
+            } else if (byte[i] == '0' && curr->left) {
+                curr = curr->left;
+            }
+            if (!curr->left && !curr->right) {
+                writeChar(ptr, curr->symb, fout);
+                ++decodedSymb;
+                curr = root;
+            }
+        }
+        offset = 0;
+    }
     while (numOfBytes < sizeOfMessage - 2){
         fread(&tmp, sizeof(unsigned char), 1, fin);
         int usedBits = 0;
@@ -197,111 +238,120 @@ void decode(FILE* fin, BUFFER* ptr, NODE* root) {
                 curr = curr->left;
             }
             if (!curr -> left && !curr -> right){
-                writeByte(ptr, curr->symb);
+                writeChar(ptr, curr->symb, fout);
                 curr = root;
             }
         }
         ++numOfBytes;
     }
-    fseek(fin, -1, SEEK_END);
+    fseek(fin, -1L, SEEK_END);
     fread(&usefulBits, sizeof(unsigned char), 1, fin);
-    fseek(fin, -2, SEEK_CUR);
+    fseek(fin, -2L, SEEK_CUR);
     fread(&tmp, sizeof(unsigned char), 1, fin);
     readByte(byte, tmp);
-    for (int i = 0; i <= (usefulBits - '0'); ++i) {
+    for (int i = offset; i <= (usefulBits - '0') ; ++i) {
         if (byte[i] == '1' && curr->right) {
             curr = curr->right;
         } else if (byte[i] == '0' && curr->left) {
             curr = curr->left;
         }
         if (!curr->left && !curr->right) {
-            writeByte(ptr, curr->symb);
+            writeChar(ptr, curr->symb, fout);
             curr = root;
         }
     }
 }
 
 
-NODE* recoverTree(FILE* fin){
-    fseek(fin, 3, SEEK_SET);
-    unsigned char numOfSymb, binSymb, symb;
+NODE* recoverTree(FILE* fin, int* offset, unsigned char* byte){
+    unsigned short numOfSymb;
+    unsigned char tmp;
     int decodedSymb = 0;
     int sizeOfStack = 0;
+    fseek(fin, 3L, SEEK_SET);
     TREE* ptr;
     initStack(&ptr);
-    fread(&numOfSymb, sizeof(unsigned char), 1, fin);
+    fread(&numOfSymb, sizeof(unsigned short), 1, fin);
     if (numOfSymb == 1){
-        pushInStack(ptr, newNode(0, '\0'));
+        pushInStack(ptr, NULL);
         ++sizeOfStack;
     }
-    for(int i = 0; decodedSymb < numOfSymb || sizeOfStack != 1; ++i){
-        fread(&binSymb, sizeof(unsigned char), 1, fin);
-        if (binSymb == '1'){
-            fread(&symb, sizeof(unsigned char), 1, fin);
-            pushInStack(ptr, newNode(0, symb));
-            ++decodedSymb;
-            ++sizeOfStack;
+    while (decodedSymb < numOfSymb || sizeOfStack != 1){
+        if (*offset == 0) {
+            fread(&tmp, sizeof(unsigned char), 1, fin);
+            readByte(byte, tmp);
         }
-        else if (binSymb == '0') {
+        if (byte[0] == '1'){
+            tmp = tmp << 1;
+            readByte(byte, tmp);
+            fread(&tmp, sizeof(unsigned char), 1, fin);
+            for (int i = 7 - *offset , j = 7; i < 8; ++i, --j) {
+                if ((1 << j) & tmp)
+                    byte[i] = '1';
+                else
+                    byte[i] = '0';
+            }
+            pushInStack(ptr, newNode(0,pushChar(byte)));
+            sizeOfStack++;
+            decodedSymb++;
+            (*offset) = ((*offset) + 1) % 8;
+            tmp = tmp << *offset;
+            readByte(byte, tmp);
+        }
+        else {
             unionNodes(ptr);
             --sizeOfStack;
+            tmp = tmp << 1;
+            (*offset) = ((*offset) + 1) % 8;
+            readByte(byte, tmp);
         }
     }
     return ptr -> next -> node;
 }
 
 
-void codeMessage(FILE*fin, unsigned char** symbols, BUFFER* ptr) {
-    unsigned char curSymb;
-    unsigned char tmp;
-    unsigned int bitsCount = 0;
-    unsigned char byte[8] = {0};
+void codeMessage(FILE*fin, FILE*fout, unsigned char** symbols, BUFFER* ptr) {
     fseek(fin, 3, SEEK_SET);
+    unsigned char curSymb;
     while (fread(&curSymb, sizeof(unsigned char), 1, fin)) {
         unsigned int lenOfSymb = strlen(symbols[curSymb]);
-        int j = 0;
-        while (j < lenOfSymb) {
-            for (; bitsCount < 8 && j < lenOfSymb; ++bitsCount) {
-                byte[bitsCount] = symbols[curSymb][j++];
-            }
-            if (bitsCount == 8){
-                writeByte(ptr, inChar(byte, tmp));
-                bitsCount = 0;
-            }
+        for (int i = 0; i < lenOfSymb; i++){
+            writeBit(ptr, symbols[curSymb][i], fout);
         }
     }
-    if (bitsCount) {
+    if (ptr -> bits % 8) {
+        int bitsCount = ptr -> bits % 8;
         unsigned int usefulBits = bitsCount - 1;
-        for (; bitsCount < 8; ++bitsCount)
-            byte[bitsCount] = '0';
-        writeByte(ptr, inChar(byte, tmp));
-        writeByte(ptr, '0' + usefulBits);
+        for (; bitsCount < 8 ; ++bitsCount)
+            writeBit(ptr, '0', fout);
+        writeChar(ptr, '0' + usefulBits, fout);
     } else
-        writeByte(ptr, '7');
+        writeChar(ptr, '7', fout);
 }
 
 
-void preOrder(BUFFER*ptr, NODE* tmp, unsigned char** codeSymb, char* value, int* bit){
+void preOrder(FILE* fout, BUFFER*ptr, NODE* tmp, unsigned char** codeSymb, unsigned char* value, int* bit){
     if (!tmp -> left && !tmp -> right) {
         value[*bit] = '\0';
-        writeByte(ptr, '1');
-        writeByte(ptr, tmp -> symb);
-        codeSymb[tmp->symb] = (unsigned char*)malloc(sizeof(unsigned char) * *(bit));
-       // printf("%c %s\n", tmp-> symb, value);
-        strcpy(codeSymb[tmp->symb], value);
+        writeBit(ptr, '1', fout);
+        writeChar(ptr, tmp->symb, fout);
+        codeSymb[tmp->symb] = (unsigned char*)malloc(sizeof(unsigned char) * (*(bit) + 1));
+        for (int i = 0; i < *bit; ++i)
+            codeSymb[tmp->symb][i] = value[i];
+        codeSymb[tmp->symb][*bit] = '\0';
         return;
     }
     if (tmp -> left){
         value[(*bit)++] = '0';
-        preOrder(ptr, tmp -> left, codeSymb, value, bit);
+        preOrder(fout, ptr, tmp -> left, codeSymb, value, bit);
         --(*bit);
     }
     if (tmp -> right) {
         value[(*bit)++] = '1';
-        preOrder(ptr, tmp -> right, codeSymb, value, bit);
+        preOrder(fout, ptr, tmp -> right, codeSymb, value, bit);
         --(*bit);
     }
-    writeByte(ptr, '0');
+    writeBit(ptr, '0', fout);
 }
 
 
@@ -328,9 +378,9 @@ HEAP* creatingBigTree(HEAP* ptr){
 }
 
 
-void pushingInTree(FILE*fin, BUFFER* tmp, HEAP** ptr){
+void pushingInTree(FILE*fin, FILE* fout, HEAP** ptr){
     int* frequency = (int*)calloc(SYMB, sizeof(int));
-    unsigned int numOfSymb = 0;
+    unsigned short numOfSymb = 0;
     unsigned char readingChar;
     fseek(fin, 3, SEEK_SET);
     while (fread(&readingChar, sizeof(unsigned char), 1, fin)){
@@ -338,7 +388,7 @@ void pushingInTree(FILE*fin, BUFFER* tmp, HEAP** ptr){
             ++numOfSymb;
         ++frequency[readingChar];
     }
-    *ptr = createHeap(numOfSymb);
+    createHeap(ptr, numOfSymb);
     for (int i = 0; (*ptr) -> heapSize < numOfSymb; ++i){
         if (frequency[i]){
             (*ptr) -> array[(*ptr)->heapSize] = newNode(frequency[i], (unsigned char)i);
@@ -346,23 +396,24 @@ void pushingInTree(FILE*fin, BUFFER* tmp, HEAP** ptr){
             ++(*ptr) -> heapSize;
         }
     }
-    writeByte(tmp, numOfSymb);
+    fwrite(&numOfSymb, sizeof(unsigned short), 1, fout);
     free(frequency);
 }
 
 
-int checkForSymb(FILE* fin){
-    fseek(fin, 0, SEEK_END);
-    int size = ftell(fin);
+long int sizeOfFile(FILE* fin){
+    fseek(fin, 0L, SEEK_END);
+    long int size = ftell(fin);
+    fseek(fin, 0L, SEEK_SET);
     return size;
 }
 
 
-BUFFER* initBuf(BUFFER* ptr){
-    ptr = (BUFFER*)malloc(sizeof(BUFFER));
-    ptr -> buffer = (unsigned char*)malloc(sizeof(unsigned char) * MAX_BUF_SIZE);
-    ptr -> sizeOfBuffer = 0;
-    return ptr;
+void initBuf(BUFFER** ptr) {
+    *ptr = (BUFFER*) malloc(sizeof(BUFFER));
+    (*ptr)->buffer = (unsigned char *) malloc(sizeof(unsigned char) * MAX_BUF_SIZE);
+    (*ptr) -> bits = 0;
+    (*ptr) -> bytes = 0;
 }
 
 
@@ -372,34 +423,37 @@ int main() {
     HEAP* minHeap;
     BUFFER* outBuffer;
     unsigned char lineOfWork;
+    long int fsize = sizeOfFile(fin);
     fread(&lineOfWork, sizeof(unsigned char), 1, fin);
     if (lineOfWork == 'c') {
         int bitInCode = 0;
         unsigned char** codeSymb = (unsigned char**)malloc(sizeof(unsigned char*) * SYMB);
-        char* code = (char*)malloc(sizeof(unsigned char) * SYMB);
-        if (checkForSymb(fin) == 3)
+        unsigned char* code = (unsigned char*)malloc(sizeof(unsigned char) * MAX_CODE_SIZE);
+        if (fsize == 3)
             return 0;
-        outBuffer = initBuf(outBuffer);
-        pushingInTree(fin, outBuffer, &minHeap);
+        initBuf(&outBuffer);
+        pushingInTree(fin, fout, &minHeap);
         creatingBigTree(minHeap);
-        preOrder(outBuffer, *minHeap->array, codeSymb, code, &bitInCode);
-        codeMessage(fin, codeSymb, outBuffer);
-        fwrite(outBuffer->buffer, sizeof(unsigned char), outBuffer->sizeOfBuffer, fout);
+        preOrder(fout, outBuffer, *minHeap->array, codeSymb, code, &bitInCode);
+        codeMessage(fin, fout, codeSymb, outBuffer);
+        fwrite(outBuffer->buffer, sizeof(unsigned char), outBuffer->bytes , fout);
         free(code);
         free(outBuffer->buffer);
        // free(codeSymb); - надо сделать полный
     }
     else if (lineOfWork == 'd'){
-        if (checkForSymb(fin) == 3)
+        unsigned char* byte = (unsigned char*)malloc(sizeof(unsigned char) * 8);
+        int offset = 0;
+        if (fsize == 3)
             return 0;
-        outBuffer = initBuf(outBuffer);
-        NODE* root = recoverTree(fin);
-        decode(fin, outBuffer, root);
-        fwrite(outBuffer -> buffer, sizeof(unsigned char), outBuffer -> sizeOfBuffer, fout);
+        initBuf(&outBuffer);
+        NODE* root = recoverTree(fin, &offset, byte);
+        byte[offset] = '\0';
+        decode(fin, fout, outBuffer, root, fsize, offset);
+        fwrite(outBuffer -> buffer, sizeof(unsigned char),  outBuffer->bytes, fout);
     }
     fclose(fin);
     return 0;
 }
 
-/// проблема с большим текстом: символы на 10 бит. неправильный код в куче.
-/// воссоздать дерево с помощью стека, (перевести в бинарный вид заокдированный файл?), раскодировать сообщение
+/// 12.05 32/36. не вывозит по времени (~в два раза больше)
