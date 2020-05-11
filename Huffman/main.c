@@ -427,8 +427,8 @@ int main() {
     fread(&lineOfWork, sizeof(unsigned char), 1, fin);
     if (lineOfWork == 'c') {
         int bitInCode = 0;
-        unsigned char** codeSymb = (unsigned char**)malloc(sizeof(unsigned char*) * SYMB);
         unsigned char* code = (unsigned char*)malloc(sizeof(unsigned char) * MAX_CODE_SIZE);
+        unsigned char** codeSymb = (unsigned char**)malloc(sizeof(unsigned char*) * SYMB);
         if (fsize == 3)
             return 0;
         initBuf(&outBuffer);
