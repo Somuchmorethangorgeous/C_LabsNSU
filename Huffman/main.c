@@ -1,9 +1,7 @@
 #include <stdio.h>
 #include <malloc.h>
-#include <io.h>
 #include <string.h>
 #include <math.h>
-
 
 
 #define SYMB 257
@@ -13,6 +11,7 @@
 #define NODE struct list
 #define BUFFER struct class
 #define TREE struct stack
+
 
 
 NODE{
@@ -199,7 +198,7 @@ void writeChar(BUFFER*ptr, unsigned char tmp, FILE* fout) {
 }
 
 
-void decode(FILE* fin, FILE* fout, BUFFER* ptr, NODE* root, long int fsize, int offset) {
+void decode(FILE* fin, FILE* fout, NODE* root, long int fsize, int offset) {
     unsigned int decodedSymb = 0;
     int numOfBytes = 0;
     int curPos = ftell(fin);
@@ -209,7 +208,7 @@ void decode(FILE* fin, FILE* fout, BUFFER* ptr, NODE* root, long int fsize, int 
     unsigned char byte[8] ={0};
     unsigned char tmp;
     if (offset != 0 && sizeOfMessage != 1) {
-        fseek(fin, -1, SEEK_CUR);
+        fseek(fin, -1L, SEEK_CUR);
         fread(&tmp, sizeof(unsigned char), 1, fin);
         readByte(byte, tmp);
         for (int i = offset; i < 8; ++i) {
@@ -219,7 +218,7 @@ void decode(FILE* fin, FILE* fout, BUFFER* ptr, NODE* root, long int fsize, int 
                 curr = curr->left;
             }
             if (!curr->left && !curr->right) {
-                writeChar(ptr, curr->symb, fout);
+                fwrite(&curr->symb, sizeof(unsigned char), 1, fout);
                 ++decodedSymb;
                 curr = root;
             }
@@ -238,7 +237,7 @@ void decode(FILE* fin, FILE* fout, BUFFER* ptr, NODE* root, long int fsize, int 
                 curr = curr->left;
             }
             if (!curr -> left && !curr -> right){
-                writeChar(ptr, curr->symb, fout);
+                fwrite(&curr->symb, sizeof(unsigned char),1, fout);
                 curr = root;
             }
         }
@@ -256,7 +255,7 @@ void decode(FILE* fin, FILE* fout, BUFFER* ptr, NODE* root, long int fsize, int 
             curr = curr->left;
         }
         if (!curr->left && !curr->right) {
-            writeChar(ptr, curr->symb, fout);
+            fwrite(&curr->symb, sizeof(unsigned char),1, fout);
             curr = root;
         }
     }
@@ -311,7 +310,7 @@ NODE* recoverTree(FILE* fin, int* offset, unsigned char* byte){
 
 
 void codeMessage(FILE*fin, FILE*fout, unsigned char** symbols, BUFFER* ptr) {
-    fseek(fin, 3, SEEK_SET);
+    fseek(fin, 3L, SEEK_SET);
     unsigned char curSymb;
     while (fread(&curSymb, sizeof(unsigned char), 1, fin)) {
         unsigned int lenOfSymb = strlen(symbols[curSymb]);
@@ -325,7 +324,8 @@ void codeMessage(FILE*fin, FILE*fout, unsigned char** symbols, BUFFER* ptr) {
         for (; bitsCount < 8 ; ++bitsCount)
             writeBit(ptr, '0', fout);
         writeChar(ptr, '0' + usefulBits, fout);
-    } else
+    }
+    else
         writeChar(ptr, '7', fout);
 }
 
@@ -382,7 +382,7 @@ void pushingInTree(FILE*fin, FILE* fout, HEAP** ptr){
     int* frequency = (int*)calloc(SYMB, sizeof(int));
     unsigned short numOfSymb = 0;
     unsigned char readingChar;
-    fseek(fin, 3, SEEK_SET);
+    fseek(fin, 3L, SEEK_SET);
     while (fread(&readingChar, sizeof(unsigned char), 1, fin)){
         if (!(frequency[readingChar]))
             ++numOfSymb;
@@ -427,8 +427,8 @@ int main() {
     fread(&lineOfWork, sizeof(unsigned char), 1, fin);
     if (lineOfWork == 'c') {
         int bitInCode = 0;
-        unsigned char* code = (unsigned char*)malloc(sizeof(unsigned char) * MAX_CODE_SIZE);
         unsigned char** codeSymb = (unsigned char**)malloc(sizeof(unsigned char*) * SYMB);
+        unsigned char* code = (unsigned char*)malloc(sizeof(unsigned char) * MAX_CODE_SIZE);
         if (fsize == 3)
             return 0;
         initBuf(&outBuffer);
@@ -446,14 +446,12 @@ int main() {
         int offset = 0;
         if (fsize == 3)
             return 0;
-        initBuf(&outBuffer);
         NODE* root = recoverTree(fin, &offset, byte);
-        byte[offset] = '\0';
-        decode(fin, fout, outBuffer, root, fsize, offset);
-        fwrite(outBuffer -> buffer, sizeof(unsigned char),  outBuffer->bytes, fout);
+        decode(fin, fout, root, fsize, offset);
+        free(byte);
     }
     fclose(fin);
     return 0;
 }
 
-/// 12.05 32/36. не вывозит по времени (~в два раза больше)
+/// 12.05 я плачу.
