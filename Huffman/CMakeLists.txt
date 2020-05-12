@@ -3,4 +3,4 @@ project(Huffman C)
 
 set(CMAKE_C_STANDARD 99)
 
-add_executable(Huffman main.c)
+add_executable(Huffman src/main.c src/lib.c src/lib.h)

@@ -1,49 +1,9 @@
-#include <stdio.h>
-#include <malloc.h>
-#include <string.h>
-#include <math.h>
+//
+// Created by roxxa on 12.05.2020.
+//
 
 
-#define CODING 'c'
-#define DECODING 'd'
-#define uc unsigned char
-#define BYTE_SIZE 8
-#define CODES_ASCII 256
-#define MAX_CODE_SIZE 24
-#define MAX_BUF_SIZE (int)1e5
-#define HEAP struct heap
-#define NODE struct list
-#define BUFFER struct buffer
-#define TREE struct stack
-
-
-
-NODE{
-    int freq;
-    uc symbol;
-    NODE* left;
-    NODE* right;
-};
-
-
-HEAP{
-    int heapSize;
-    NODE** array;
-};
-
-
-TREE{
-    NODE* node;
-    TREE* next;
-};
-
-BUFFER{
-    int bits;
-    int bytes;
-    uc* buffer;
-};
-
-
+#include "lib.h"
 
 int parent(int i){
     return (i-1)/2;
@@ -160,7 +120,7 @@ uc pushChar(const uc arr[]){
     unsigned res = 0;
     for (int i = 0; i < BYTE_SIZE; ++i)
         res += (arr[i] - '0') * (int)pow(2, 7- i);
-     return (uc)res;
+    return (uc)res;
 }
 
 
@@ -174,25 +134,25 @@ void readByte(uc ptr [], uc byte){
 }
 
 
-void writeBit(BUFFER*ptr, uc bit, FILE* fout){
+void writeBit(BUFFER* ptr, uc bit, FILE* fout){
     unsigned res = 0;
     ptr->buffer[ptr -> bytes + ptr -> bits++] = bit;
     if (ptr->bits  == BYTE_SIZE){
-       for (int i = 0; i < BYTE_SIZE; ++i) {
-           res += (ptr->buffer[ptr->bytes + i] - '0') * (int)pow(2, 7 - i);
-       }
-       ptr -> buffer[ptr->bytes++] = (uc) res;
-       ptr -> bits = 0;
-       if (ptr -> bytes == 65536) { // buffer cleaning
-           fwrite(ptr->buffer, sizeof(uc), ptr->bytes, fout);
-           memset(ptr->buffer, '\0', 65536);
-           ptr->bytes = 0;
-       }
+        for (int i = 0; i < BYTE_SIZE; ++i) {
+            res += (ptr->buffer[ptr->bytes + i] - '0') * (int)pow(2, 7 - i);
+        }
+        ptr -> buffer[ptr->bytes++] = (uc) res;
+        ptr -> bits = 0;
+        if (ptr -> bytes == 65536) { // buffer cleaning
+            fwrite(ptr->buffer, sizeof(uc), ptr->bytes, fout);
+            memset(ptr->buffer, '\0', 65536);
+            ptr->bytes = 0;
+        }
     }
 }
 
 
-void writeChar(BUFFER*ptr, uc tmp, FILE* fout) {
+void writeChar(BUFFER* ptr, uc tmp, FILE* fout){
     for(unsigned int i = 0; i < BYTE_SIZE; ++i){
         if ((1u << (7 - i)) & tmp)
             writeBit(ptr, '1', fout);
@@ -202,7 +162,7 @@ void writeChar(BUFFER*ptr, uc tmp, FILE* fout) {
 }
 
 
-void decode(FILE* fin, FILE* fout, NODE* root, long int fSize, unsigned int offset) {
+void decode(FILE* fin, FILE* fout, NODE* root, long int fSize, unsigned int offset){
     int numOfBytes = 0;
     int curPos = ftell(fin);
     int sizeOfMessage = fSize- curPos;
@@ -318,7 +278,7 @@ NODE* recoverTree(FILE* fin, unsigned int* offset, uc* byte){
 }
 
 
-void codeMessage(FILE* fin, FILE* fout, uc** codesOfSymbols, BUFFER* ptr) {
+void codeMessage(FILE* fin, FILE* fout, uc** codesOfSymbols, BUFFER* ptr){
     fseek(fin, 3L, SEEK_SET);
     uc curSymbol;
 
@@ -390,18 +350,18 @@ HEAP* creatingBigTree(HEAP* ptr){
 
 void pushingInTree(FILE* fin, FILE* fout, HEAP** ptr){
     int* frequency = (int*)calloc(CODES_ASCII, sizeof(int));
-    unsigned short numOfsymbol = 0;
+    unsigned short numOfSymbols = 0;
     uc readingChar;
     fseek(fin, 3L, SEEK_SET);
 
     while (fread(&readingChar, sizeof(uc), 1, fin)){ // counting of frequency for each symbol
         if (!(frequency[readingChar]))
-            ++numOfsymbol;
+            ++numOfSymbols;
         ++frequency[readingChar];
     }
 
-    createHeap(ptr, numOfsymbol);
-    for (int i = 0; (*ptr) -> heapSize < numOfsymbol; ++i){ // pushing in heap
+    createHeap(ptr, numOfSymbols);
+    for (int i = 0; (*ptr) -> heapSize < numOfSymbols; ++i){ // pushing in heap
         if (frequency[i]){
             (*ptr) -> array[(*ptr)->heapSize] = newNode(frequency[i], (uc)i);
             siftUp(*ptr, (*ptr)->heapSize);
@@ -409,7 +369,7 @@ void pushingInTree(FILE* fin, FILE* fout, HEAP** ptr){
         }
     }
 
-    fwrite(&numOfsymbol, sizeof(unsigned short), 1, fout);
+    fwrite(&numOfSymbols, sizeof(unsigned short), 1, fout);
     free(frequency);
 }
 
@@ -439,50 +399,4 @@ void freeMem(uc** codesOfSymbols, uc* code, BUFFER* ptr){
         free(ptr->buffer);
     else if (ptr != NULL)
         free(ptr);
-}
-
-
-int main(){
-    FILE* fin = fopen("in.txt", "rb");
-    FILE* fout = fopen("out.txt", "wb");
-    HEAP* minHeap;
-    BUFFER* outBuffer;
-    uc function;
-    long int fSize = sizeOfFile(fin);
-
-    if (fSize == 3) // check for empty file
-        return 0;
-
-    fread(&function, sizeof(uc), 1, fin);
-    if (function == CODING){
-
-        int bitInCode = 0;
-        uc** codesOfSymbols = (uc**)malloc(sizeof(uc*) * CODES_ASCII); // coding buffer
-        uc* code = (uc*)malloc(sizeof(uc) * MAX_CODE_SIZE); // buffer of new code for each symbol
-        initBuf(&outBuffer);
-
-        pushingInTree(fin, fout, &minHeap);
-        creatingBigTree(minHeap); // tree of codes
-        preOrder(fout, outBuffer, *minHeap->array, codesOfSymbols, code, &bitInCode);
-        codeMessage(fin, fout, codesOfSymbols, outBuffer);
-
-        fwrite(outBuffer->buffer, sizeof(uc), outBuffer->bytes , fout);
-        freeMem(codesOfSymbols, code, outBuffer);
-    }
-
-    else if (function == DECODING){
-
-        uc* byte = (uc*)malloc(sizeof(uc) * BYTE_SIZE);
-        unsigned int offset = 0; // offset in byte where coding of tree ends
-
-        NODE* root = recoverTree(fin, &offset, byte);
-        decode(fin, fout, root, fSize, offset);
-
-        if (byte != NULL)
-            free(byte);
-    }
-
-    fclose(fin);
-    fclose(fout);
-    return 0;
 }
