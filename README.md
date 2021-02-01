@@ -1,2 +1,2 @@
 # LabsNsu
-First stepic in coding :)
+First steps in coding :)
