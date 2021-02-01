@@ -1,2 +1,2 @@
 # LabsNsu
-First labs on C
+First stepic in coding :)
